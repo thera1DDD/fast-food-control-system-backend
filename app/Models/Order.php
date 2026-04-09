@@ -1,0 +1,47 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class Order extends Model
+{
+    use HasFactory;
+
+    protected $appends = [
+        'order_number',
+    ];
+
+    protected $fillable = [
+        'customer_name',
+        'customer_phone',
+        'notes',
+        'source',
+        'ordered_at',
+        'total_amount',
+        'is_ready',
+        'ready_at',
+        'ready_sound_requested_at',
+        'ready_sound_played_at',
+    ];
+
+    protected $casts = [
+        'ordered_at' => 'datetime',
+        'total_amount' => 'decimal:2',
+        'is_ready' => 'boolean',
+        'ready_at' => 'datetime',
+        'ready_sound_requested_at' => 'datetime',
+        'ready_sound_played_at' => 'datetime',
+    ];
+
+    public function items()
+    {
+        return $this->hasMany(OrderItem::class);
+    }
+
+    public function getOrderNumberAttribute(): int
+    {
+        return $this->id;
+    }
+}
