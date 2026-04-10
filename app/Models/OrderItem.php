@@ -13,6 +13,7 @@ class OrderItem extends Model
         'order_id',
         'dish_id',
         'dish_name',
+        'preparation_area',
         'quantity',
         'unit_price',
         'line_total',

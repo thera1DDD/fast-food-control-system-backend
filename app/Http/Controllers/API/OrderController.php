@@ -72,6 +72,7 @@ class OrderController extends Controller
             $preparedItems[] = [
                 'dish_id' => $dish->id,
                 'dish_name' => $dish->name,
+                'preparation_area' => $dish->preparation_area ?: 'kitchen',
                 'quantity' => $quantity,
                 'unit_price' => $unitPrice,
                 'line_total' => $lineTotal,

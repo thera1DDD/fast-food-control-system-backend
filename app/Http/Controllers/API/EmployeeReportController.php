@@ -64,7 +64,14 @@ class EmployeeReportController extends Controller
         $totalRevenue = round((float) $orders->sum('total_amount'), 2);
         $totalPenaltyAmount = round((float) $employees->sum('penalty_amount'), 2);
         $totalSalaryDue = round((float) $employees->sum('salary_due'), 2);
-        $itemsSold = (int) $orders->flatMap->items->sum('quantity');
+        $soldItems = $orders->flatMap->items;
+        $itemsSold = (int) $soldItems->sum('quantity');
+        $kitchenItems = $soldItems->where('preparation_area', 'kitchen');
+        $barItems = $soldItems->where('preparation_area', 'bar');
+        $kitchenTotalAmount = round((float) $kitchenItems->sum('line_total'), 2);
+        $barTotalAmount = round((float) $barItems->sum('line_total'), 2);
+        $kitchenItemsSold = (int) $kitchenItems->sum('quantity');
+        $barItemsSold = (int) $barItems->sum('quantity');
 
         return response()->json([
             'date' => $date,
@@ -78,6 +85,16 @@ class EmployeeReportController extends Controller
                 'orders_count' => $orders->count(),
                 'items_sold' => $itemsSold,
                 'total_amount' => $totalRevenue,
+                'by_preparation_area' => [
+                    'kitchen' => [
+                        'items_sold' => $kitchenItemsSold,
+                        'total_amount' => $kitchenTotalAmount,
+                    ],
+                    'bar' => [
+                        'items_sold' => $barItemsSold,
+                        'total_amount' => $barTotalAmount,
+                    ],
+                ],
                 'orders' => $orders,
             ],
             'payroll' => [

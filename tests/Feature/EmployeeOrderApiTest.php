@@ -24,6 +24,13 @@ class EmployeeOrderApiTest extends TestCase
         $dish = Dishes::query()->create([
             'name' => 'Soup',
             'price' => '250',
+            'preparation_area' => 'kitchen',
+        ]);
+
+        $drink = Dishes::query()->create([
+            'name' => 'Lemonade',
+            'price' => '150',
+            'preparation_area' => 'bar',
         ]);
 
         $loginResponse = $this->postJson('/api/employee/login', [
@@ -39,14 +46,20 @@ class EmployeeOrderApiTest extends TestCase
 
         $this->postJson('/api/orders', [
             'customer_name' => 'Customer',
+            'ordered_at' => now()->setTime(12, 0)->toDateTimeString(),
             'items' => [
                 [
                     'dish_id' => $dish->id,
                     'quantity' => 2,
                 ],
+                [
+                    'dish_id' => $drink->id,
+                    'quantity' => 1,
+                ],
             ],
         ])->assertCreated()
-            ->assertJsonPath('order.total_amount', '500.00');
+            ->assertJsonPath('order.total_amount', '650.00')
+            ->assertJsonPath('order.items.0.preparation_area', 'kitchen');
 
         $this->withHeader('Authorization', 'Bearer '.$token)
             ->postJson('/api/employee/attendance/check-in')
@@ -57,7 +70,11 @@ class EmployeeOrderApiTest extends TestCase
             ->getJson('/api/employee/reports/daily?date='.now()->toDateString())
             ->assertOk()
             ->assertJsonPath('sales.orders_count', 1)
-            ->assertJsonPath('sales.total_amount', 500)
+            ->assertJsonPath('sales.total_amount', 650)
+            ->assertJsonPath('sales.by_preparation_area.kitchen.total_amount', 500)
+            ->assertJsonPath('sales.by_preparation_area.kitchen.items_sold', 2)
+            ->assertJsonPath('sales.by_preparation_area.bar.total_amount', 150)
+            ->assertJsonPath('sales.by_preparation_area.bar.items_sold', 1)
             ->assertJsonPath('employees.0.name', 'Ivan');
     }
 
@@ -73,6 +90,7 @@ class EmployeeOrderApiTest extends TestCase
         $dish = Dishes::query()->create([
             'name' => 'Pizza',
             'price' => '450',
+            'preparation_area' => 'kitchen',
         ]);
 
         $token = $this->postJson('/api/employee/login', [
@@ -81,6 +99,7 @@ class EmployeeOrderApiTest extends TestCase
         ])->json('token');
 
         $orderId = $this->postJson('/api/orders', [
+            'ordered_at' => now()->setTime(13, 0)->toDateTimeString(),
             'items' => [
                 [
                     'dish_id' => $dish->id,

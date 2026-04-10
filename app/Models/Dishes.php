@@ -18,6 +18,7 @@ class Dishes extends Model
             'kcal',
             'gram',
             'price',
+            'preparation_area',
             'category_id',
         ];
 
