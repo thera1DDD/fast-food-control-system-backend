@@ -8,6 +8,7 @@ use App\Models\Order;
 use App\Support\PriceHelper;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class OrderController extends Controller
 {
@@ -16,6 +17,7 @@ class OrderController extends Controller
         $validated = $request->validate([
             'date' => ['nullable', 'date_format:Y-m-d'],
             'ready' => ['nullable', 'boolean'],
+            'paid' => ['nullable', 'boolean'],
         ]);
 
         $date = $validated['date'] ?? now()->toDateString();
@@ -29,10 +31,19 @@ class OrderController extends Controller
             $query->where('is_ready', (bool) $validated['ready']);
         }
 
+        if (array_key_exists('paid', $validated)) {
+            $query->where('is_paid', (bool) $validated['paid']);
+        }
+
         $orders = $query->get();
 
         return response()->json([
             'date' => $date,
+            'summary' => [
+                'orders_count' => $orders->count(),
+                'paid_count' => $orders->where('is_paid', true)->count(),
+                'unpaid_count' => $orders->where('is_paid', false)->count(),
+            ],
             'orders' => $orders,
         ]);
     }
@@ -45,6 +56,7 @@ class OrderController extends Controller
             'notes' => ['nullable', 'string'],
             'source' => ['nullable', 'string', 'max:50'],
             'ordered_at' => ['nullable', 'date'],
+            'is_paid' => ['nullable', 'boolean'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.dish_id' => ['required', 'integer', 'exists:dishes,id'],
             'items.*.quantity' => ['required', 'integer', 'min:1'],
@@ -82,14 +94,21 @@ class OrderController extends Controller
         }
 
         $order = DB::transaction(function () use ($validated, $preparedItems, $totalAmount) {
+            $isPaid = (bool) ($validated['is_paid'] ?? false);
+            $now = now();
+
             $order = Order::query()->create([
                 'customer_name' => $validated['customer_name'] ?? null,
                 'customer_phone' => $validated['customer_phone'] ?? null,
                 'notes' => $validated['notes'] ?? null,
                 'source' => $validated['source'] ?? 'website',
-                'ordered_at' => $validated['ordered_at'] ?? now(),
+                'ordered_at' => $validated['ordered_at'] ?? $now,
                 'total_amount' => round($totalAmount, 2),
+                'is_paid' => $isPaid,
+                'paid_at' => $isPaid ? $now : null,
                 'is_ready' => false,
+                'order_sound_requested_at' => $now,
+                'order_sound_played_at' => null,
             ]);
 
             $order->items()->createMany($preparedItems);
@@ -100,7 +119,17 @@ class OrderController extends Controller
         return response()->json([
             'message' => 'Order saved successfully.',
             'order' => $order,
+            'notification' => [
+                'type' => 'new_order',
+                'sound' => 'loud',
+                'text' => 'New order #'.$order->order_number,
+            ],
         ], 201);
+    }
+
+    public function daily(Request $request)
+    {
+        return $this->current($request);
     }
 
     public function markReady(Order $order)
@@ -138,6 +167,68 @@ class OrderController extends Controller
         ]);
     }
 
+    public function markPaid(Order $order)
+    {
+        $order->forceFill([
+            'is_paid' => true,
+            'paid_at' => now(),
+        ])->save();
+
+        return response()->json([
+            'message' => 'Order marked as paid.',
+            'order' => $order->load('items'),
+        ]);
+    }
+
+    public function markUnpaid(Order $order)
+    {
+        $order->forceFill([
+            'is_paid' => false,
+            'paid_at' => null,
+        ])->save();
+
+        return response()->json([
+            'message' => 'Order marked as unpaid.',
+            'order' => $order->load('items'),
+        ]);
+    }
+
+    public function incomingAnnouncements()
+    {
+        $orders = Order::query()
+            ->whereNotNull('order_sound_requested_at')
+            ->whereNull('order_sound_played_at')
+            ->orderBy('order_sound_requested_at')
+            ->get()
+            ->map(function (Order $order) {
+                return [
+                    'order_id' => $order->id,
+                    'order_number' => $order->order_number,
+                    'type' => 'new_order',
+                    'sound' => 'loud',
+                    'text' => 'New order #'.$order->order_number,
+                    'ordered_at' => $order->ordered_at,
+                ];
+            })
+            ->values();
+
+        return response()->json([
+            'announcements' => $orders,
+        ]);
+    }
+
+    public function markIncomingAnnouncementPlayed(Order $order)
+    {
+        $order->forceFill([
+            'order_sound_played_at' => now(),
+        ])->save();
+
+        return response()->json([
+            'message' => 'Incoming order announcement marked as played.',
+            'order' => $order,
+        ]);
+    }
+
     public function readyAnnouncements()
     {
         $orders = Order::query()
@@ -172,6 +263,22 @@ class OrderController extends Controller
         return response()->json([
             'message' => 'Announcement marked as played.',
             'order' => $order,
+        ]);
+    }
+
+    public function clear()
+    {
+        Schema::disableForeignKeyConstraints();
+
+        try {
+            DB::table('order_items')->truncate();
+            DB::table('orders')->truncate();
+        } finally {
+            Schema::enableForeignKeyConstraints();
+        }
+
+        return response()->json([
+            'message' => 'All orders cleared.',
         ]);
     }
 }
