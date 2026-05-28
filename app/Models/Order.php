@@ -18,6 +18,7 @@ class Order extends Model
         'customer_phone',
         'notes',
         'source',
+        'fulfillment_type',
         'ordered_at',
         'total_amount',
         'is_paid',

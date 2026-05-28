@@ -43,6 +43,8 @@ class OrderController extends Controller
                 'orders_count' => $orders->count(),
                 'paid_count' => $orders->where('is_paid', true)->count(),
                 'unpaid_count' => $orders->where('is_paid', false)->count(),
+                'delivery_count' => $orders->where('fulfillment_type', 'delivery')->count(),
+                'pickup_count' => $orders->where('fulfillment_type', 'pickup')->count(),
             ],
             'orders' => $orders,
         ]);
@@ -55,6 +57,7 @@ class OrderController extends Controller
             'customer_phone' => ['nullable', 'string', 'max:50'],
             'notes' => ['nullable', 'string'],
             'source' => ['nullable', 'string', 'max:50'],
+            'fulfillment_type' => ['nullable', 'string', 'in:pickup,delivery'],
             'ordered_at' => ['nullable', 'date'],
             'is_paid' => ['nullable', 'boolean'],
             'items' => ['required', 'array', 'min:1'],
@@ -102,6 +105,7 @@ class OrderController extends Controller
                 'customer_phone' => $validated['customer_phone'] ?? null,
                 'notes' => $validated['notes'] ?? null,
                 'source' => $validated['source'] ?? 'website',
+                'fulfillment_type' => $validated['fulfillment_type'] ?? 'pickup',
                 'ordered_at' => $validated['ordered_at'] ?? $now,
                 'total_amount' => round($totalAmount, 2),
                 'is_paid' => $isPaid,
@@ -263,6 +267,15 @@ class OrderController extends Controller
         return response()->json([
             'message' => 'Announcement marked as played.',
             'order' => $order,
+        ]);
+    }
+
+    public function destroy(Order $order)
+    {
+        $order->delete();
+
+        return response()->json([
+            'message' => 'Order deleted.',
         ]);
     }
 

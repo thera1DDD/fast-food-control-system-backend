@@ -48,6 +48,7 @@ Route::prefix('employee')->group(function () {
         Route::get('/orders/current', [OrderController::class, 'current']);
         Route::get('/orders/daily', [OrderController::class, 'daily']);
         Route::delete('/orders', [OrderController::class, 'clear']);
+        Route::delete('/orders/{order}', [OrderController::class, 'destroy']);
         Route::patch('/orders/{order}/paid', [OrderController::class, 'markPaid']);
         Route::patch('/orders/{order}/unpaid', [OrderController::class, 'markUnpaid']);
         Route::patch('/orders/{order}/ready', [OrderController::class, 'markReady']);
