@@ -198,6 +198,28 @@ class OrderController extends Controller
         ]);
     }
 
+    public function update(Request $request, Order $order)
+    {
+        $validated = $request->validate([
+            'customer_name' => ['nullable', 'string', 'max:255'],
+            'customer_phone' => ['nullable', 'string', 'max:50'],
+            'notes' => ['nullable', 'string'],
+            'fulfillment_type' => ['nullable', 'string', 'in:pickup,delivery'],
+            'is_paid' => ['nullable', 'boolean'],
+        ]);
+
+        if (array_key_exists('is_paid', $validated)) {
+            $validated['paid_at'] = $validated['is_paid'] ? now() : null;
+        }
+
+        $order->forceFill($validated)->save();
+
+        return response()->json([
+            'message' => 'Order updated.',
+            'order' => $order->fresh()->load('items'),
+        ]);
+    }
+
     public function updateItem(Request $request, Order $order, OrderItem $item)
     {
         $this->abortIfItemDoesNotBelongToOrder($order, $item);
@@ -228,6 +250,49 @@ class OrderController extends Controller
             'message' => 'Order item updated.',
             'order' => $order->fresh()->load('items'),
         ]);
+    }
+
+    public function storeItem(Request $request, Order $order)
+    {
+        $validated = $request->validate([
+            'dish_id' => ['required', 'integer', 'exists:dishes,id'],
+            'quantity' => ['nullable', 'integer', 'min:1'],
+        ]);
+
+        $dish = Dishes::query()->findOrFail($validated['dish_id']);
+        $quantity = (int) ($validated['quantity'] ?? 1);
+        $unitPrice = PriceHelper::normalize($dish->getRawOriginal('price'));
+
+        DB::transaction(function () use ($order, $dish, $quantity, $unitPrice) {
+            $item = $order->items()
+                ->where('dish_id', $dish->id)
+                ->first();
+
+            if ($item) {
+                $quantity += (int) $item->quantity;
+            } else {
+                $item = new OrderItem([
+                    'dish_id' => $dish->id,
+                ]);
+                $item->order()->associate($order);
+            }
+
+            $item->forceFill([
+                'dish_id' => $dish->id,
+                'dish_name' => $dish->name,
+                'preparation_area' => $dish->preparation_area ?: 'kitchen',
+                'quantity' => $quantity,
+                'unit_price' => $unitPrice,
+                'line_total' => round($unitPrice * $quantity, 2),
+            ])->save();
+
+            $this->recalculateOrderTotal($order);
+        });
+
+        return response()->json([
+            'message' => 'Order item added.',
+            'order' => $order->fresh()->load('items'),
+        ], 201);
     }
 
     public function destroyItem(Order $order, OrderItem $item)
