@@ -5,6 +5,7 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Models\Dishes;
 use App\Models\Order;
+use App\Models\OrderItem;
 use App\Support\PriceHelper;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -197,6 +198,53 @@ class OrderController extends Controller
         ]);
     }
 
+    public function updateItem(Request $request, Order $order, OrderItem $item)
+    {
+        $this->abortIfItemDoesNotBelongToOrder($order, $item);
+
+        $validated = $request->validate([
+            'dish_id' => ['required', 'integer', 'exists:dishes,id'],
+            'quantity' => ['nullable', 'integer', 'min:1'],
+        ]);
+
+        $dish = Dishes::query()->findOrFail($validated['dish_id']);
+        $quantity = (int) ($validated['quantity'] ?? $item->quantity ?? 1);
+        $unitPrice = PriceHelper::normalize($dish->getRawOriginal('price'));
+
+        DB::transaction(function () use ($order, $item, $dish, $quantity, $unitPrice) {
+            $item->forceFill([
+                'dish_id' => $dish->id,
+                'dish_name' => $dish->name,
+                'preparation_area' => $dish->preparation_area ?: 'kitchen',
+                'quantity' => $quantity,
+                'unit_price' => $unitPrice,
+                'line_total' => round($unitPrice * $quantity, 2),
+            ])->save();
+
+            $this->recalculateOrderTotal($order);
+        });
+
+        return response()->json([
+            'message' => 'Order item updated.',
+            'order' => $order->fresh()->load('items'),
+        ]);
+    }
+
+    public function destroyItem(Order $order, OrderItem $item)
+    {
+        $this->abortIfItemDoesNotBelongToOrder($order, $item);
+
+        DB::transaction(function () use ($order, $item) {
+            $item->delete();
+            $this->recalculateOrderTotal($order);
+        });
+
+        return response()->json([
+            'message' => 'Order item deleted.',
+            'order' => $order->fresh()->load('items'),
+        ]);
+    }
+
     public function incomingAnnouncements()
     {
         $orders = Order::query()
@@ -293,5 +341,19 @@ class OrderController extends Controller
         return response()->json([
             'message' => 'All orders cleared.',
         ]);
+    }
+
+    private function abortIfItemDoesNotBelongToOrder(Order $order, OrderItem $item): void
+    {
+        abort_if((int) $item->order_id !== (int) $order->id, 404, 'Order item not found.');
+    }
+
+    private function recalculateOrderTotal(Order $order): void
+    {
+        $total = $order->items()->sum('line_total');
+
+        $order->forceFill([
+            'total_amount' => round((float) $total, 2),
+        ])->save();
     }
 }
