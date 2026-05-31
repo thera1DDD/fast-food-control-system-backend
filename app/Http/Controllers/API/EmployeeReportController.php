@@ -72,8 +72,9 @@ class EmployeeReportController extends Controller
         $barTotalAmount = round((float) $barItems->sum('line_total'), 2);
         $kitchenItemsSold = (int) $kitchenItems->sum('quantity');
         $barItemsSold = (int) $barItems->sum('quantity');
-        $deliveryOrders = $orders->where('fulfillment_type', 'delivery')->values();
+        $cafeOrders = $orders->where('fulfillment_type', 'cafe')->values();
         $pickupOrders = $orders->where('fulfillment_type', 'pickup')->values();
+        $deliveryOrders = $orders->where('fulfillment_type', 'delivery')->values();
 
         return response()->json([
             'date' => $date,
@@ -88,15 +89,20 @@ class EmployeeReportController extends Controller
                 'items_sold' => $itemsSold,
                 'total_amount' => $totalRevenue,
                 'by_fulfillment_type' => [
-                    'delivery' => [
-                        'orders_count' => $deliveryOrders->count(),
-                        'total_amount' => round((float) $deliveryOrders->sum('total_amount'), 2),
-                        'orders' => $deliveryOrders,
+                    'cafe' => [
+                        'orders_count' => $cafeOrders->count(),
+                        'total_amount' => round((float) $cafeOrders->sum('total_amount'), 2),
+                        'orders' => $cafeOrders,
                     ],
                     'pickup' => [
                         'orders_count' => $pickupOrders->count(),
                         'total_amount' => round((float) $pickupOrders->sum('total_amount'), 2),
                         'orders' => $pickupOrders,
+                    ],
+                    'delivery' => [
+                        'orders_count' => $deliveryOrders->count(),
+                        'total_amount' => round((float) $deliveryOrders->sum('total_amount'), 2),
+                        'orders' => $deliveryOrders,
                     ],
                 ],
                 'by_preparation_area' => [

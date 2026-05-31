@@ -16,10 +16,10 @@ class EmployeeAttendanceController extends Controller
         $workDate = $now->toDateString();
         $scheduledStart = Carbon::parse($workDate.' 09:00:00', config('app.timezone'));
         $lateMinutes = max(0, $scheduledStart->diffInMinutes($now, false));
-        $lateHalfHours = (int) ceil($lateMinutes / 30);
+        $latePenaltyUnits = (int) ceil($lateMinutes / 5);
         $dailySalary = (float) $employee->daily_salary;
         $penaltyRate = (float) $employee->penalty_rate_per_half_hour;
-        $penaltyAmount = round($dailySalary * (($penaltyRate * $lateHalfHours) / 100), 2);
+        $penaltyAmount = round($dailySalary * (($penaltyRate * $latePenaltyUnits) / 100), 2);
         $isNew = false;
 
         $attendance = EmployeeAttendance::query()->firstOrNew([
@@ -42,7 +42,7 @@ class EmployeeAttendanceController extends Controller
             'checked_in_at' => $now,
             'scheduled_start_at' => $scheduledStart,
             'late_minutes' => $lateMinutes,
-            'late_half_hours' => $lateHalfHours,
+            'late_half_hours' => $latePenaltyUnits,
             'penalty_rate_snapshot' => $penaltyRate,
             'daily_salary_snapshot' => $dailySalary,
             'penalty_amount' => $penaltyAmount,
