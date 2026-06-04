@@ -2,12 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasStorageImage;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Category extends Model
 {
     use HasFactory;
+    use HasStorageImage;
     protected $fillable =
 
         [
@@ -42,6 +44,6 @@ class Category extends Model
     // Добавляем accessor для изображения
     public function getImageAttribute($value)
     {
-        return 'storage/' . $value;
+        return $this->storageImageUrl($value);
     }
 }
