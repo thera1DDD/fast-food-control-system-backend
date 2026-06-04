@@ -17,28 +17,6 @@ Route::get('/', function () {
     return view('welcome');
 });
 
-Route::get('storage/{path}', function (string $path) {
-    $relativePath = ltrim(str_replace('\\', '/', $path), '/');
-
-    if ($relativePath === '' || str_contains($relativePath, '..')) {
-        abort(404);
-    }
-
-    $filePath = storage_path('app/public/'.$relativePath);
-
-    if (! is_file($filePath)) {
-        abort(404);
-    }
-
-    return response()->file($filePath);
-})
-    ->where('path', '.*')
-    ->withoutMiddleware([
-        \Illuminate\Session\Middleware\StartSession::class,
-        \Illuminate\View\Middleware\ShareErrorsFromSession::class,
-        \App\Http\Middleware\VerifyCsrfToken::class,
-    ]);
-
 
 Route::group(['prefix' => 'admin'], function () {
     Voyager::routes();
